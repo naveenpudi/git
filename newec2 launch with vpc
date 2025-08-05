@@ -1,0 +1,119 @@
+---
+- name: Launch EC2 instance with custom VPC, subnet, keypair, SG and 8GB volume in Mumbai
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    region: ap-south-1
+    aws_access_key: AKIAXKNVCS7C5ZZSN2OP
+    aws_secret_key: 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
+    vpc_cidr: "10.0.0.0/16"
+    subnet_cidr: "10.0.1.0/24"
+    availability_zone: ap-south-1a
+    key_name: my-mumbai-key
+    instance_type: t2.micro
+    volume_size: 8
+    image_id: ami-007020fd9c84e18c7  # Amazon Linux 2 AMI (Mumbai region)
+    security_group_name: my-mumbai-sg
+
+  tasks:
+
+    - name: Create VPC
+      amazon.aws.ec2_vpc_net:
+        name: my-mumbai-vpc
+        cidr_block: "{{ vpc_cidr }}"
+        region: "{{ region }}"
+        aws_access_key: "{{ aws_access_key }}"
+        aws_secret_key: "{{ aws_secret_key }}"
+        state: present
+      register: vpc
+
+    - name: Create Subnet
+      amazon.aws.ec2_vpc_subnet:
+        vpc_id: "{{ vpc.vpc.id }}"
+        cidr: "{{ subnet_cidr }}"
+        az: "{{ availability_zone }}"
+        region: "{{ region }}"
+        aws_access_key: "{{ aws_access_key }}"
+        aws_secret_key: "{{ aws_secret_key }}"
+        state: present
+      register: subnet
+
+    - name: Create Internet Gateway
+      amazon.aws.ec2_vpc_igw:
+        vpc_id: "{{ vpc.vpc.id }}"
+        region: "{{ region }}"
+        aws_access_key: "{{ aws_access_key }}"
+        aws_secret_key: "{{ aws_secret_key }}"
+        state: present
+      register: igw
+
+    - name: Create Route Table and Route to IGW
+      amazon.aws.ec2_vpc_route_table:
+        vpc_id: "{{ vpc.vpc.id }}"
+        region: "{{ region }}"
+        aws_access_key: "{{ aws_access_key }}"
+        aws_secret_key: "{{ aws_secret_key }}"
+        tags:
+          Name: my-mumbai-rt
+        subnets:
+          - "{{ subnet.subnet.id }}"
+        routes:
+          - dest: 0.0.0.0/0
+            gateway_id: "{{ igw.gateway_id }}"
+        state: present
+
+    - name: Create Security Group
+      amazon.aws.ec2_group:
+        name: "{{ security_group_name }}"
+        description: Allow SSH
+        vpc_id: "{{ vpc.vpc.id }}"
+        region: "{{ region }}"
+        aws_access_key: "{{ aws_access_key }}"
+        aws_secret_key: "{{ aws_secret_key }}"
+        rules:
+          - proto: tcp
+            ports: [22]
+            cidr_ip: 0.0.0.0/0
+        state: present
+      register: sg
+
+    - name: Create Key Pair
+      amazon.aws.ec2_key:
+        name: "{{ key_name }}"
+        region: "{{ region }}"
+        aws_access_key: "{{ aws_access_key }}"
+        aws_secret_key: "{{ aws_secret_key }}"
+        state: present
+      register: keypair
+
+    - name: Save Private Key to File
+      copy:
+        content: "{{ keypair.key.private_key }}"
+        dest: "./{{ key_name }}.pem"
+        mode: '0400'
+      when: keypair.changed
+
+    - name: Launch EC2 instance
+      amazon.aws.ec2_instance:
+        name: Mumbai-Instance
+        key_name: "{{ key_name }}"
+        instance_type: "{{ instance_type }}"
+        image_id: "{{ image_id }}"
+        wait: yes
+        count: 1
+        region: "{{ region }}"
+        aws_access_key: "{{ aws_access_key }}"
+        aws_secret_key: "{{ aws_secret_key }}"
+        network:
+          subnet_id: "{{ subnet.subnet.id }}"
+          assign_public_ip: yes
+          security_group_id: "{{ sg.group_id }}"
+        volumes:
+          - device_name: /dev/xvda
+            ebs:
+              volume_size: "{{ volume_size }}"
+              delete_on_termination: true
+        tags:
+          Name: Ansible-Mumbai-Instance
