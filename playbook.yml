@@ -1,0 +1,40 @@
+---
+- name: Install Java, Create Users, Set Environment Variables
+  hosts: webservers
+  become: true
+
+  vars:
+    java_package: openjdk-11-jdk
+    users:
+      - name: devuser1
+        password: "DefaultPassword123"
+      - name: devuser2
+        password: "AnotherPass456"
+    java_home_path: "/usr/lib/jvm/java-11-openjdk-amd64"
+
+  tasks:
+    - name: Install Java JDK
+      apt:
+        name: "{{ java_package }}"
+        state: present
+        update_cache: yes
+
+    - name: Create users with default passwords
+      user:
+        name: "{{ item.name }}"
+        password: "{{ item.password | password_hash('sha512') }}"
+        shell: /bin/bash
+        state: present
+      loop: "{{ users }}"
+
+    - name: Set JAVA_HOME environment variable globally
+      lineinfile:
+        path: /etc/environment
+        line: 'JAVA_HOME={{ java_home_path }}'
+        create: yes
+        state: present
+
+    - name: Apply updated environment variables
+      shell: source /etc/environment
+      args:
+        executable: /bin/bash

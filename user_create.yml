@@ -1,0 +1,12 @@
+---
+- name: Create a user on Ubuntu
+  hosts: all
+  become: yes
+
+  tasks:
+    - name: Create user "naveen"
+      ansible.builtin.user:
+        name: naveen
+        password: "$6$rounds=100000$someSalt$hC1e3ntrB85Yo3/7ekrZ3k8Tzql7aIgl.QnpgdJZ2AyIT/Oz4KxqJwZc54HHqJHZJ05mTZquHOZcOwSAgqqWm/"
+        shell: /bin/bash
+

@@ -1,0 +1,22 @@
+---
+- name: Clone or Pull Git Repository
+  hosts: all
+  become: true
+
+  vars:
+    repo_url: "https://github.com/naveenpudi/vunathi.git"
+    repo_dest: "/home/{{ ansible_user }}/vunathi"
+    repo_version: "main"   # or a specific branch or tag
+
+  tasks:
+    - name: Ensure git is installed
+      package:
+        name: git
+        state: present
+
+    - name: Clone or update the repository
+      git:
+        repo: "{{ repo_url }}"
+        dest: "{{ repo_dest }}"
+        version: "{{ repo_version }}"
+        update: yes

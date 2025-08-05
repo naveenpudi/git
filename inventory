@@ -1,0 +1,4 @@
+[webservers]
+
+44.201.101.93  ansible_user=root 
+
